@@ -1,0 +1,29 @@
+# Keil 编译输出
+*.o
+*.d
+*.crf
+*.lnp
+*.map
+*.hex
+*.bin
+*.axf
+*.elf
+*.sct
+*.dep
+
+# Keil 临时文件
+*.uvguix.*
+*.scvd
+*.dbgconf
+*.ini
+
+# 编译目录
+MDK-ARM/Listings/
+MDK-ARM/Objects/
+MDK-ARM/DebugConfig/
+MDK-ARM/RTE/
+
+# 其他
+*.tmp
+*.log
+*.bak
