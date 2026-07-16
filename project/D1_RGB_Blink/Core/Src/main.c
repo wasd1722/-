@@ -42,9 +42,14 @@
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim2;
 
+UART_HandleTypeDef huart2;
+
 /* USER CODE BEGIN PV */
 
 __IO uint8_t flag_tim2 = 0;
+
+__IO uint8_t rx_cmd = 0;
+uint8_t rx_buffer[3];
 
 /* USER CODE END PV */
 
@@ -52,12 +57,28 @@ __IO uint8_t flag_tim2 = 0;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+    if(huart->Instance == USART2){
+		
+        uint8_t ch = rx_buffer[0];
+
+        if(ch != '\r' && ch != '\n'){
+            rx_cmd = ch;
+        }
+        HAL_UART_Receive_IT(&huart2, rx_buffer, 1);
+    }
+}
+
+
+
 
 void RGB_SetColor(uint8_t r, uint8_t g, uint8_t b)
 {
@@ -107,14 +128,43 @@ uint8_t color = 0;
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM2_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim2);
+  HAL_UART_Receive_IT(&huart2,rx_buffer,1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	if (rx_cmd != 0)
+    {
+        switch (rx_cmd)
+        {
+            case 'R':
+            case 'r': RGB_SetColor(1,0,0); break;  // 红
+            
+            case 'G':
+            case 'g': RGB_SetColor(0,1,0); break;  // 绿
+            
+            case 'B':
+            case 'b': RGB_SetColor(0,0,1); break;  // 蓝
+            
+            case 'Y':
+            case 'y': RGB_SetColor(1,1,0); break;  // 黄
+            
+            case 'W':
+            case 'w': RGB_SetColor(1,1,1); break;  // 白
+            
+            case 'O':
+            case 'o': RGB_SetColor(0,0,0); break;  // 灭
+            
+            default: break;
+        }
+        rx_cmd = 0;  
+    }
+	  
 	if(flag_tim2 == 1){
 		color++;
 		flag_tim2 = 0;
@@ -122,15 +172,15 @@ uint8_t color = 0;
 	
 	if(color >= 4) color = 1;
 	
-	switch (color){
-		case 1:RGB_SetColor(1,0,0);
-		break;
-		case 2:RGB_SetColor(0,1,0);       
-		break;
-		case 3:RGB_SetColor(0,0,1);
-		break;
-		default:break;
-	}
+//	switch (color){
+//		case 1:RGB_SetColor(1,0,0);
+//		break;
+//		case 2:RGB_SetColor(0,1,0);       
+//		break;
+//		case 3:RGB_SetColor(0,0,1);
+//		break;
+//		default:break;
+//	}
 	  
     /* USER CODE END WHILE */
 
@@ -220,6 +270,39 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 38400;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
 
 }
 
