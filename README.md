@@ -16,7 +16,7 @@ STM32F103 HAL 库学习记录，从点灯到 FreeRTOS 迁移。
 | D2 | [TIM2 定时器中断 RGB](projects/D1_RGB_Blink) | 定时器中断、状态机、标志位设计 | ✅ 完成 |
 | D3 | [串口蓝牙控制 RGB](projects/D1_RGB_Blink) | UART 中断接收、波特率配置、蓝牙通信 | ✅ 完成 |
 | D4 | [PWM 呼吸灯](projects/D1_RGB_Blink) | TIM1 PWM 模式、占空比、人眼非线性 | ✅ 完成 |
-| D5 | ADC 光敏自动调光 | ADC 采集、PWM 联动 | 🔄 待开始 |
+| D5 | [ADC 光敏自动调光](projects/D1_RGB_Blink) | ADC 采集、自动标定、PWM 联动调光 | ✅ 完成 |
 | D6 | FreeRTOS 集成 | 任务调度、信号量、互斥锁 | ⏳ 计划 |
 
 ## 笔记
@@ -27,6 +27,7 @@ STM32F103 HAL 库学习记录，从点灯到 FreeRTOS 迁移。
 | D2 | TIM2 中断、SWD 踩坑 | [D2_TIM2_RGB.md](docs/D2_TIM2_RGB.md) |
 | D3 | 串口蓝牙、波特率踩坑 | [D3_UART_RGB.md](docs/D3_UART_RGB.md) |
 | D4 | PWM 呼吸灯、MOE 踩坑 | [D4_PWM_Breathe.md](docs/D4_PWM_Breathe.md) |
+| D5 | ADC 自动调光、自标定踩坑 | [D5_ADC_AutoLight.md](docs/D5_ADC_AutoLight.md) |
 
 ## 踩坑记录汇总
 
@@ -35,6 +36,9 @@ STM32F103 HAL 库学习记录，从点灯到 FreeRTOS 迁移。
 | 2026-07-16 | SWD 引脚复用导致芯片锁死 | Connect Under Reset 恢复 | [D2](docs/D2_TIM2_RGB.md) |
 | 2026-07-16 | 波特率不匹配导致串口乱码 | 改 38400 | [D3](docs/D3_UART_RGB.md) |
 | 2026-07-17 | MOE 主输出使能疑问 | 查 HAL 源码发现自动使能 | [D4](docs/D4_PWM_Breathe.md) |
+| 2026-07-17 | 遮光灯变暗（映射方向反） | 去掉取反，暗→高ADC→高PWM | [D5](docs/D5_ADC_AutoLight.md) |
+| 2026-07-17 | 亮度变化不明显 | 自动标定（动态追踪 adc_min/max） | [D5](docs/D5_ADC_AutoLight.md) |
+| 2026-07-17 | ADC 时钟超标（/2→36MHz） | 改分频 /6→12MHz | [D5](docs/D5_ADC_AutoLight.md) |
 
 ## 技能树
 
@@ -42,7 +46,7 @@ STM32F103 HAL 库学习记录，从点灯到 FreeRTOS 迁移。
 - [x] 定时器中断
 - [x] UART 中断通信
 - [x] PWM 输出
-- [ ] ADC 采集
+- [x] ADC 采集
 - [ ] DMA 传输
 - [ ] FreeRTOS 任务调度
 - [ ] 低功耗模式
