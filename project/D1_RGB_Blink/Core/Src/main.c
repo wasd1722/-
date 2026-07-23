@@ -52,32 +52,51 @@ osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for ADCTask */
 osThreadId_t ADCTaskHandle;
 const osThreadAttr_t ADCTask_attributes = {
   .name = "ADCTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for PWMTask */
 osThreadId_t PWMTaskHandle;
 const osThreadAttr_t PWMTask_attributes = {
   .name = "PWMTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for BTCommandTask */
+osThreadId_t BTCommandTaskHandle;
+const osThreadAttr_t BTCommandTask_attributes = {
+  .name = "BTCommandTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for adcQueue */
 osMessageQueueId_t adcQueueHandle;
 const osMessageQueueAttr_t adcQueue_attributes = {
   .name = "adcQueue"
 };
+/* Definitions for lightMutex */
+osMutexId_t lightMutexHandle;
+const osMutexAttr_t lightMutex_attributes = {
+  .name = "lightMutex"
+};
+/* Definitions for lightSemaphore */
+osSemaphoreId_t lightSemaphoreHandle;
+const osSemaphoreAttr_t lightSemaphore_attributes = {
+  .name = "lightSemaphore"
+};
 /* USER CODE BEGIN PV */
 
 __IO uint8_t rx_cmd = 0;
 uint8_t rx_buffer[3];
 
+static uint8_t  light_mode = 0;     // 0=AUTO(默认), 1=MANUAL
+static uint32_t manual_pwm = 500;   // 手动亮度默认 50%
 
 /* USER CODE END PV */
 
@@ -90,6 +109,7 @@ static void MX_ADC1_Init(void);
 void StartDefaultTask(void *argument);
 void adcTaskFunc(void *argument);
 void pwmTaskFunc(void *argument);
+void btCmdTaskFunc(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -169,10 +189,17 @@ int main(void)
 
   /* Init scheduler */
   osKernelInitialize();
+  /* Create the mutex(es) */
+  /* creation of lightMutex */
+  lightMutexHandle = osMutexNew(&lightMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of lightSemaphore */
+  lightSemaphoreHandle = osSemaphoreNew(1, 1, &lightSemaphore_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -199,6 +226,9 @@ int main(void)
 
   /* creation of PWMTask */
   PWMTaskHandle = osThreadNew(pwmTaskFunc, NULL, &PWMTask_attributes);
+
+  /* creation of BTCommandTask */
+  BTCommandTaskHandle = osThreadNew(btCmdTaskFunc, NULL, &BTCommandTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -527,15 +557,70 @@ void pwmTaskFunc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	
+	osMessageQueueGet(adcQueueHandle,&pwm,NULL,osWaitForever);
+	  
+	  osMutexAcquire(lightMutexHandle,osWaitForever);
+	  
+	  if(light_mode == 1){
+		pwm = manual_pwm;
+	  }
+	  
+	  osMutexRelease(lightMutexHandle);
 	
 
-	osMessageQueueGet(adcQueueHandle, &pwm, NULL, osWaitForever);
 	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pwm);
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, pwm);
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, pwm);
   }
   /* USER CODE END pwmTaskFunc */
+}
+
+/* USER CODE BEGIN Header_btCmdTaskFunc */
+/**
+* @brief Function implementing the BTCommandTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_btCmdTaskFunc */
+void btCmdTaskFunc(void *argument)
+{
+  /* USER CODE BEGIN btCmdTaskFunc */
+  /* Infinite loop */
+  for(;;)
+  {
+	if(rx_cmd != 0){
+		osMutexAcquire(lightMutexHandle,osWaitForever);
+		
+		if (rx_cmd == 'A' || rx_cmd == 'a')
+      {
+        light_mode = 0;   // 自动
+      }
+      else if (rx_cmd == 'M' || rx_cmd == 'm')
+      {
+        light_mode = 1;   // 手动
+      }
+	  else if (rx_cmd == 'O' || rx_cmd == 'o')
+	  {
+		manual_pwm = 0;
+		  
+		light_mode = 1;
+	  }
+      else if (rx_cmd >= '1' && rx_cmd <= '9')
+      {
+
+        manual_pwm = (uint32_t)(rx_cmd - '0') * 111;
+
+        light_mode = 1;   // 收到数字自动切手动模式
+      }
+	  osMutexRelease(lightMutexHandle);
+
+	}
+	  
+	rx_cmd = 0;
+	  
+    osDelay(50);
+  }
+  /* USER CODE END btCmdTaskFunc */
 }
 
 /**
