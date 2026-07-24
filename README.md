@@ -19,7 +19,8 @@ STM32F103 HAL 库学习记录，从点灯到 FreeRTOS 迁移。
 | D5 | [ADC 光敏自动调光](projects/D1_RGB_Blink) | ADC 采集、自动标定、PWM 联动调光 | ✅ 完成 |
 | D6 | [FreeRTOS 多任务调度](projects/D1_RGB_Blink) | 任务调度、队列通信、优先级、栈管理 | ✅ 完成 |
 | D7 | [信号量与互斥锁](projects/D1_RGB_Blink) | 互斥锁、二进制信号量、蓝牙命令控灯 | ✅ 完成 |
-| D8 | DMA + ADC 连续采集 | DMA 传输、信号量同步唤醒 | ⏳ 计划 |
+| D8 | [DMA + ADC 连续采集](projects/D1_RGB_Blink) | DMA 环形缓冲、信号量事件驱动 | ✅ 完成 |
+| D9 | 超声波输入捕获 | TIM 输入捕获、脉宽测距 | ⏳ 计划 |
 
 ## 笔记
 
@@ -32,6 +33,7 @@ STM32F103 HAL 库学习记录，从点灯到 FreeRTOS 迁移。
 | D5 | ADC 自动调光、自标定踩坑 | [D5_ADC_AutoLight.md](docs/D5_ADC_AutoLight.md) |
 | D6 | FreeRTOS 多任务、队列通信踩坑 | [D6_FreeRTOS.md](docs/D6_FreeRTOS.md) |
 | D7 | 信号量与互斥锁、蓝牙命令控灯 | [D7_Mutex_Semaphore.md](docs/D7_Mutex_Semaphore.md) |
+| D8 | DMA+ADC 连续采集、信号量初始值踩坑 | [D8_DMA_ADC.md](docs/D8_DMA_ADC.md) |
 
 ## 踩坑记录汇总
 
@@ -46,6 +48,8 @@ STM32F103 HAL 库学习记录，从点灯到 FreeRTOS 迁移。
 | D6 | 核心代码在 for(;;) 外→只跑一次 | 全部搬进循环内 |
 | D6 | 队列 uint16_t 类型→栈越界 | 改 uint32_t |
 | D6 | Low 任务被 Normal 永久饿死 | 改 Normal 同级轮转 |
+| D8 | 信号量初始值 1→首帧读到零 | CubeMX Semaphore Initial State 改 Not Available |
+| D8 | osSemaphoreReleaseFromISR 编译报错 | CMSIS v2 统一 API，直接 osSemaphoreRelease |
 
 ## 技能树
 
@@ -54,7 +58,7 @@ STM32F103 HAL 库学习记录，从点灯到 FreeRTOS 迁移。
 - [x] UART 中断通信
 - [x] PWM 输出
 - [x] ADC 采集
-- [ ] DMA 传输
+- [x] DMA 传输
 - [x] FreeRTOS 任务调度
 - [x] 互斥锁与信号量
 - [ ] 低功耗模式

@@ -42,6 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 TIM_HandleTypeDef htim1;
 
@@ -98,11 +99,15 @@ uint8_t rx_buffer[3];
 static uint8_t  light_mode = 0;     // 0=AUTO(默认), 1=MANUAL
 static uint32_t manual_pwm = 500;   // 手动亮度默认 50%
 
+uint16_t adc_dma_buf[128];                  // DMA 自动灌入 128 个样本
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_ADC1_Init(void);
@@ -140,6 +145,15 @@ void RGB_SetColor(uint8_t r, uint8_t g, uint8_t b)
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9,  b ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+    if (hadc->Instance == ADC1)
+    {
+
+        osSemaphoreRelease(lightSemaphoreHandle);
+		
+    }
+}
 
 /* USER CODE END 0 */
 
@@ -172,6 +186,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_TIM1_Init();
   MX_ADC1_Init();
@@ -181,8 +196,8 @@ int main(void)
   HAL_TIM_PWM_Start(&htim1,TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim1,TIM_CHANNEL_4);
   
-  HAL_ADCEx_Calibration_Start(&hadc1);   // 上电自校准
-  HAL_ADC_Start(&hadc1);                 // 启动连续转换
+  HAL_ADCEx_Calibration_Start(&hadc1);   				// 上电自校准
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_dma_buf, 128);// 启动连续转换
 
   
   /* USER CODE END 2 */
@@ -199,7 +214,7 @@ int main(void)
 
   /* Create the semaphores(s) */
   /* creation of lightSemaphore */
-  lightSemaphoreHandle = osSemaphoreNew(1, 1, &lightSemaphore_attributes);
+  lightSemaphoreHandle = osSemaphoreNew(1, 0, &lightSemaphore_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -464,6 +479,22 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -515,28 +546,70 @@ void StartDefaultTask(void *argument)
 void adcTaskFunc(void *argument)
 {
   /* USER CODE BEGIN adcTaskFunc */
-	uint32_t adc_value = 0;    // ADC 原始值（0~4095）
-	uint32_t pwm_duty = 0;     // PWM 占空比（0~999）
 
-    /* 自动标定：持续追踪 ADC 的最小和最大值 */
-    static uint32_t adc_min = 4095;
-    static uint32_t adc_max = 0;
+    static uint32_t adc_min = 1000;
+    static uint32_t adc_max = 1100;
     
 	
 	
   /* Infinite loop */
   for(;;)
-  {
-	adc_value = HAL_ADC_GetValue(&hadc1);
-	if (adc_value < adc_min) adc_min = adc_value;
-    if (adc_value > adc_max) adc_max = adc_value;
-	if (adc_max > adc_min)
-        pwm_duty = (uint16_t)((adc_value - adc_min) * 999 / (adc_max - adc_min));
-    else
-        pwm_duty = 0;
-	osMessageQueuePut(adcQueueHandle,&pwm_duty,0,0);
-    osDelay(20);
+  { osSemaphoreAcquire(lightSemaphoreHandle, osWaitForever);
+	  uint32_t sum = 0;
+    for (int i = 48; i < 80; i++)
+        sum += adc_dma_buf[i];
+    uint32_t val = sum / 32;
+
+	  static uint32_t tick = 0;
+tick++;
+if (tick >= 370)                              /* 约每秒印一次 */
+{
+    tick = 0;
+    char buf[50];
+
+    /* 手写整数字符串，不用 sprintf */
+    buf[0] = 'v'; buf[1] = '=';                 /* "val" */
+    uint32_t n = val;
+    uint8_t i = 2;
+    if (n == 0) buf[i++] = '0';
+    else { uint8_t tmp[10]; uint8_t j = 0;
+        while (n > 0) { tmp[j++] = '0' + (n % 10); n /= 10; }
+        while (j > 0) buf[i++] = tmp[--j]; }
+    buf[i++] = ' ';
+
+    n = adc_min;
+    buf[i++] = 'm'; buf[i++] = '=';             /* "min" */
+    if (n == 0) buf[i++] = '0';
+    else { uint8_t tmp[10]; uint8_t j = 0;
+        while (n > 0) { tmp[j++] = '0' + (n % 10); n /= 10; }
+        while (j > 0) buf[i++] = tmp[--j]; }
+    buf[i++] = ' ';
+
+    n = adc_max;
+    buf[i++] = 'M'; buf[i++] = '=';             /* "Max" */
+    if (n == 0) buf[i++] = '0';
+    else { uint8_t tmp[10]; uint8_t j = 0;
+        while (n > 0) { tmp[j++] = '0' + (n % 10); n /= 10; }
+        while (j > 0) buf[i++] = tmp[--j]; }
+
+    buf[i++] = '\r'; buf[i++] = '\n';
+    HAL_UART_Transmit(&huart2, (uint8_t*)buf, i, 100);
+}
+
+	 
+
+    /* 取中间 32 个样本平均，抗抖动 */
+   
+    if (val < adc_min) adc_min = val;
+    if (val > adc_max) adc_max = val;
+
+    uint32_t pwm;
+    if (adc_max > adc_min)
+        pwm = (val - adc_min) * 999 / (adc_max - adc_min);
+
+    osMessageQueuePut(adcQueueHandle, &pwm, 0, 0);
   }
+
   /* USER CODE END adcTaskFunc */
 }
 
